@@ -1,0 +1,149 @@
+Create Users Table
+CREATE TABLE Users (
+    UserID INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserName TEXT NOT NULL,
+    Password TEXT NOT NULL,
+    Email TEXT
+);
+
+-- Create Customers Table
+CREATE TABLE Customers (
+    CustomerID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CustomerName TEXT NOT NULL,
+    ContactInfo TEXT,
+    Address TEXT
+);
+
+-- Create Products Table
+CREATE TABLE Products (
+    ProductID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductName TEXT NOT NULL,
+    Price REAL NOT NULL,
+    Stock INTEGER NOT NULL
+);
+
+-- Create Orders Table
+CREATE TABLE Orders (
+    OrderID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CustomerID INTEGER,
+    OrderDate TEXT NOT NULL,
+    TotalAmount REAL NOT NULL,
+    FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID)
+);
+
+-- Create OrderItems Table
+CREATE TABLE OrderItems (
+    OrderItemID INTEGER PRIMARY KEY AUTOINCREMENT,
+    OrderID INTEGER,
+    ProductID INTEGER,
+    Quantity INTEGER NOT NULL,
+    Price REAL NOT NULL,
+    FOREIGN KEY (OrderID) REFERENCES Orders(OrderID),
+    FOREIGN KEY (ProductID) REFERENCES Products(ProductID)
+);
+
+#Sample Data Insertion Script
+
+-- Insert Sample Users
+INSERT INTO Users (UserName, Password, Email) VALUES
+('admin', 'adminpass', 'admin@example.com'),
+('user1', 'user1pass', 'user1@example.com');
+
+-- Insert Sample Customers
+INSERT INTO Customers (CustomerName, ContactInfo, Address) VALUES
+('Customer One', '111-222-3333', '123 Customer Rd'),
+('Customer Two', '444-555-6666', '456 Customer Blvd');
+
+-- Insert Sample Products
+INSERT INTO Products (ProductName, Price, Stock) VALUES
+('Product One', 10.00, 100),
+('Product Two', 15.50, 200);
+
+-- Insert Sample Orders
+INSERT INTO Orders (CustomerID, OrderDate, TotalAmount) VALUES
+(1, '2024-06-01', 100.00),
+(2, '2024-06-10', 155.00);
+
+-- Insert Sample OrderItems
+INSERT INTO OrderItems (OrderID, ProductID, Quantity, Price) VALUES
+(1, 1, 5, 10.00),
+(2, 2, 10, 15.50);
+
+
+#Flask Application
+
+#Create the Flask Application
+from flask import Flask, request, jsonify
+import sqlite3
+
+app = Flask(_name_)
+
+# Database connection
+def get_db_connection():
+    conn = sqlite3.connect('departmental_store.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# Home route
+@app.route('/')
+def index():
+    return "Welcome to the Departmental Store Billing System!"
+
+# Route to get all products
+@app.route('/products', methods=['GET'])
+def get_products():
+    conn = get_db_connection()
+    products = conn.execute('SELECT * FROM Products').fetchall()
+    conn.close()
+    return jsonify([dict(ix) for ix in products])
+
+# Route to create an order
+@app.route('/create_order', methods=['POST'])
+def create_order():
+    order_data = request.get_json()
+    customer_id = order_data['customer_id']
+    order_date = order_data['order_date']
+    items = order_data['items']  # List of {product_id, quantity}
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Calculate total amount
+    total_amount = 0
+    for item in items:
+        product = conn.execute('SELECT Price FROM Products WHERE ProductID = ?', (item['product_id'],)).fetchone()
+        total_amount += product['Price'] * item['quantity']
+
+    # Insert into Orders table
+    cursor.execute('INSERT INTO Orders (CustomerID, OrderDate, TotalAmount) VALUES (?, ?, ?)', 
+                   (customer_id, order_date, total_amount))
+    order_id = cursor.lastrowid
+
+    # Insert into OrderItems table
+    for item in items:
+        product = conn.execute('SELECT Price FROM Products WHERE ProductID = ?', (item['product_id'],)).fetchone()
+        cursor.execute('INSERT INTO OrderItems (OrderID, ProductID, Quantity, Price) VALUES (?, ?, ?, ?)', 
+                       (order_id, item['product_id'], item['quantity'], product['Price']))
+
+    conn.commit()
+    conn.close()
+    return jsonify({"order_id": order_id, "total_amount": total_amount})
+
+if _name_ == '_main_':
+    app.run(debug=True)
+
+#Set Up and Run the Application
+
+#Install Flask
+
+pip install Flask
+
+#Initialize the Database
+
+sqlite3 departmental_store.db < schema.sql
+sqlite3 departmental_store.db < sample_data.sql
+
+
+#Run the Flask Application
+
+python app.py
